@@ -21,7 +21,7 @@ baseurl: "/" # the subpath of your site, e.g. /blog
 url: "blog.j-lgs.me" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username: DontCareAboutTwitter
 github_username:  j-lgs
-
+repository: j-lgs/blog
 # Build settings
 markdown: kramdown
 remote_theme: "mmistakes/minimal-mistakes@4.24.0"
