@@ -254,6 +254,7 @@ PLATFORMS
 
 DEPENDENCIES
   github-pages (~> 228)
+  jekyll-feed
   jekyll-include-cache
   kramdown-parser-gfm
   tzinfo (~> 1.2)
