@@ -120,6 +120,9 @@ I set appropriate firewall rules to properly segment data.
 Here's an example of a firewall rule in OPNsense for the Attacker VLAN
 [![OPNsense firewal rules for the attacker VLAN](/assets/img/cyber-lab-1/firewall_rules.webp)](/assets/img/cyber-lab-1/firewall_rules.webp)
 
+## Proxmox
+Proxmox has [documentation](https://pve.proxmox.com/wiki/Network_Configuration#sysadmin_network_vlan) for using VLANs for management and VM interfaces. I elected to use a network bond (in active-backup mode as the switch does not support LACP), with proxmox management traffic on the management VLAN (20). My setup was almost identical the the example in the documentation, an exception being I had IPv6 configured as well.
+
 ## Next up
 + Populating networks with VMs.
 + Creating VM templates for victims/malware analysis.
