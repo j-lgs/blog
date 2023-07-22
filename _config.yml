@@ -29,6 +29,33 @@ plugins:
   - jekyll-include-cache
   - jekyll-feed
 
+locale: "en-GB"
+
+minimal_mistakes_skin: "contrast"
+name: "Jacob Logan"
+
+author:
+  name: "Jacob Logan"
+  avatar: "/assets/img/bio.webp"
+  bio: >-
+    Studying Cybersecurity.
+    <3 Linux, WSL, Containers and Infrastructure, Configuration, Everything as code.
+    This blog is for personal reference. Do not use it as documentation or attempt anything written here at home.
+  location: Earth
+  links:
+    - label: "Github"
+      icon: "fab fa-fw fa-github"
+      url: "https://github.com/j-lgs"
+    - label: "LinkedIn"
+      icon: "fab fa-fw fa-linkedin"
+      url: "https://www.linkedin.com/in/jacob-logan-859b38277/"
+
+defaults:
+  - scope:
+      path: "assets/img"
+    values:
+      image: true
+
 # Exclude from processing.
 # The following items will not be processed, by default. Create a custom list
 # to override the default setting.

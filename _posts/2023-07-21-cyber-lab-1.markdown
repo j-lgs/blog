@@ -1,0 +1,129 @@
+---
+title:  "Creating a cybersecurity lab (Part 1)"
+layout: single
+author_profile: true
+read_time: true
+related: true
+date:   2023-07-22 16:18:10 +1000
+tags:
+  - homelab
+  - proxmox
+  - cybersecurity
+  - linux
+show_date: true
+---
+# Part 1: Network Setup
+As a part of my cybersecurity learning journey I want to get my hands dirty with responding to attacks, using IDS and IPS software and triaging alerts in a plausable environment. In addition I may want to try my hand at reverse engineering or observing malware. These activities (the malware RE in particular) are not safe to do on my main machine or network. Also similarity to real-world environments would be reduced if I were to run these tools locally.
+
+To solve this I will create a network and virtual machine setup that emulates what may be seen in a target business environment with windows endpoints, a DC and linux servers. Additionally I'll have separate networks for an attacker, defenders and malware RE. This will let me safely contain any attacker tools, or malware I decide to detonate. In addition the network boundaries will better simulate what a real attacker has to surpass.
+
+## Hardware inventory
+### Router
+Topton n5105 Router with 8GB ram, 5 2.5GBE ports and 512G SSD.
+
+### Switch
+Netgear GS305E.
+
+### Server
+Whitebox server:
+
+| Part | Model |
+| -- | -- |
+| Motherboard | AsRock Rack x470d4u |
+| CPU | 5900x |
+| RAM | 32GB ECC |
+| Drives | 512GB SSD, 18x4TB HDD |
+| GPU | GTX 1650ti |
+
+## Network
+As for implementation. I'll segment networks with VLANs. The following VLAN tags, subnets and gateways will be used: IPv6 gateways are interface dependent.
+
+| VLAN tag | IPv4 subnet   | IPv6 subnet ID   | Gateway     | Description                                    |
+| -------- | ------------- | ---------------- | ----------- | ---------------------------------------------- |
+| N/A      | 10.0.0.0/25   | 1010             | 10.0.0.1    | Wired Client devices (Workstation PC, TV, Etc) |
+| N/A      | 10.0.0.128/26 | 1011             | 10.0.0.129  | Wireless client devices (Phone, IoT, Etc)      |
+| N/A      | 10.0.0.192/26 | 1012             | 10.0.0.193  | Direct connection to PC                        |
+| 20       | 10.0.2.0/26   | 1020             | 10.0.2.1    | Server IPMI and management                     |
+| 30       | 10.0.3.0/24   | 1030             | 10.0.3.1    | Internal services (internal) |
+| 40       | 10.0.4.0/24   | 1040             | 10.0.4.1    | Internet-facing services (external) |
+| 100      | 10.0.10.0/24  | 1100             | 10.0.10.254 | Isolated attacker VLAN (no internet due to risk of attacker tools or malware leakage ) |
+| 110      | 10.0.11.0/24  | 1110             | 10.0.11.254 | Victim network, simulated corporate network (no internet unless needed) |
+| 120      | 10.0.12.0/24  | 1120             | 10.0.12.254 | SOC/defender network. Internet access (for Virustotal, updating YARA rules or snort rules, etc) |
+| 500      | 10.0.50.0/24  | 1500             | 10.0.50.254 | Malware network. No internet and highly locked down. |
+
+Proxmox will be used as the virtualisation host.
+
+> **_NOTE:_** Due to limitations in the switch (Netgear GS305E), switch management cannot be set to a particular VLAN. As such we have the switch's management webUI on the client devices network rather than the management network.
+
+## Switch configuration
+Since VLAN untagging is handled by the management interface of the server, and in software by Proxmox we only need a single untagged port. This port is directly connected to the PC workstation to get access to management interfaces.
+
+| Port | Purpose |
+| 1    | Connection to Server BMC |
+| 2    | Trunk, connection to router |
+| 3    | Connection to Proxmox Host |
+| 4    | Connection to Proxmox Host |
+| 5    | Connection to the management network, Untagged on VLAN 20 |
+
+### Overview
+I configured VLAN IDs to match the Network table. I am using Advanced 802.1Q VLAN mode in the Netgear GS305E webUI.
+[![Netgear switch VLAN IDs](/assets/img/cyber-lab-1/vlan_ids.webp)](/assets/img/cyber-lab-1/vlan_ids.webp)
+
+VLAN memberships for this setup is straightforward. The default VLAN is untagged for every port other than the management network port.
+[![Netgear switch default VLANPorts](/assets/img/cyber-lab-1/vlan_1_ports.webp)](/assets/img/cyber-lab-1/vlan_1_ports.webp)
+
+For the Management network we untag the dedicated management port and have the others as tagged ports. As stated before, this works because untagging is handled in software by Proxmox and the server's BMC.
+[![Netgear switch management VLAN ports](/assets/img/cyber-lab-1/vlan_mgmt_ports.webp)](/assets/img/cyber-lab-1/vlan_mgmt_ports.webp)
+
+All our other VLANs are tagged for the trunk and Proxmox server.
+[![Netgear switch Other VLAN ports](/assets/img/cyber-lab-1/vlan_other_ports.webp)](/assets/img/cyber-lab-1/vlan_other_ports.webp)
+
+We set a PVID of 20 for the untagged management port.
+[![Netgear switch PVIDs](/assets/img/cyber-lab-1/vlan_pvids.webp)](/assets/img/cyber-lab-1/vlan_pvids.webp)
+
+## OPNsense Configuration
+What follows is a walkthrough of setting up a VLAN network in OPNsense.
+### VLANs
+In OPNsense's interface I created VLANs for each network, using the same tags specified within the network table.
+[![VLANs in OPNsense](/assets/img/cyber-lab-1/vlans.webp)](/assets/img/cyber-lab-1/vlans.webp)
+
+Then I assign interfaces to each VLAN
+[![VLANs assignments in OPNsense](/assets/img/cyber-lab-1/assignments.webp)](/assets/img/cyber-lab-1/assignments.webp)
+
+The device is given a name and set ipv4 configuration to a static IP and ipv6 configuration to track the WAN interface
+[![OPNsense VLAN interface static IP](/assets/img/cyber-lab-1/interface_config.webp)](/assets/img/cyber-lab-1/interface_config.webp)
+
+ipv4 config
+[![OPNsense VLAN interface IPv4 setup](/assets/img/cyber-lab-1/interface_ip4.webp)](/assets/img/cyber-lab-1/interface_ip4.webp)
+
+And IPv6
+[![OPNsense VLAN interface IPv6 setup](/assets/img/cyber-lab-1/interface_ip6.webp)](/assets/img/cyber-lab-1/interface_ip6.webp)
+
+DHCP was configured for each interface, with DHCP enabled on the client network(s) and the defender network.
+
+### Firewall Rules
+I set appropriate firewall rules to properly segment data.
+
+| Network      | Can access            | Can be accessed by |
+| ------------ | --------------------- | ------------------ |
+| LAN          | Internet              | PC, Management |
+| WiFi         | Internet              | Self |
+| PC           | Internal, SOC/Defender, Attacker | Self |
+| Management   | Self, LAN                  | Self |
+| Internal     | Internet              | PC, WiFi |
+| External     | Internet, services in Internal | Self |
+| Attacker     | Victim                | PC |
+| Victim       | Self                  | Soc/Defender, Attacker |
+| SOC/Defender | Internet, Victim      | PC |
+| Malware      | Self                  | Self |
+
+Here's an example of a firewall rule in OPNsense for the Attacker VLAN
+[![OPNsense firewal rules for the attacker VLAN](/assets/img/cyber-lab-1/firewall_rules.webp)](/assets/img/cyber-lab-1/firewall_rules.webp)
+
+## Next up
++ Populating networks with VMs.
++ Creating VM templates for victims/malware analysis.
+
+## Improvements
++ Move firewall rules, router config and switch config to Ansible playbooks.
++ A better switch so I can aggregate uplink ports and have switch management on the management VLAN.
